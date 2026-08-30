@@ -1,10 +1,10 @@
 [![HACS Default](https://img.shields.io/badge/HACS-Default-blue.svg)](https://github.com/hacs/default)
-[![GitHub release](https://img.shields.io/github/release/myTselection/smartschool_ha.svg)](https://github.com/myTselection/smartschool_ha/releases)
-![GitHub repo size](https://img.shields.io/github/repo-size/myTselection/smartschool_ha.svg)
+[![GitHub release](https://img.shields.io/github/release/myTselectionPublic/smartschool_ha.svg)](https://github.com/myTselectionPublic/smartschool_ha/releases)
+![GitHub repo size](https://img.shields.io/github/repo-size/myTselectionPublic/smartschool_ha.svg)
 
-[![GitHub issues](https://img.shields.io/github/issues/myTselection/smartschool_ha.svg)](https://github.com/myTselection/smartschool_ha/issues)
-[![GitHub last commit](https://img.shields.io/github/last-commit/myTselection/smartschool_ha.svg)](https://github.com/myTselection/smartschool_ha/commits/main)
-[![GitHub commit activity](https://img.shields.io/github/commit-activity/m/myTselection/smartschool_ha.svg)](https://github.com/myTselection/smartschool_ha/graphs/commit-activity)
+[![GitHub issues](https://img.shields.io/github/issues/myTselectionPublic/smartschool_ha.svg)](https://github.com/myTselectionPublic/smartschool_ha/issues)
+[![GitHub last commit](https://img.shields.io/github/last-commit/myTselectionPublic/smartschool_ha.svg)](https://github.com/myTselectionPublic/smartschool_ha/commits/main)
+[![GitHub commit activity](https://img.shields.io/github/commit-activity/m/myTselectionPublic/smartschool_ha.svg)](https://github.com/myTselectionPublic/smartschool_ha/graphs/commit-activity)
 
 
 # Smartschool Home Assistant integration
@@ -23,15 +23,15 @@ This integration is in no way affiliated with Smartschool.
 
 ## Background
 This integration has been based on the python application of [https://github.com/IntelCoreI6/smartschool_mcp](https://github.com/IntelCoreI6/smartschool_mcp) (fork of [https://github.com/svaningelgem/smartschool](https://github.com/svaningelgem/smartschool)).
-This application has been [forked and extended](https://github.com/myTselection/smartschool_mcp) to support parallel sessions and to support authentication with Google Authenticator (2FA).
-<p align="center"><img src="https://github.com/myTselection/smartschool_ha/blob/main/logo.png?raw=true" width="500"/></p>
+This application has been [forked and extended](https://github.com/myTselectionPublic/smartschool_mcp) to support parallel sessions and to support authentication with Google Authenticator (2FA).
+<p align="center"><img src="https://github.com/myTselectionPublic/smartschool_ha/blob/main/logo.png?raw=true" width="500"/></p>
 
 ## Installation
 <details>
 <summary>Instructions</summary>
   
 - [HACS](https://hacs.xyz/): search for Smartschool in HACS integrations and install
-  - [![Open your Home Assistant instance and open the repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg?style=flat-square)](https://my.home-assistant.io/redirect/hacs_repository/?owner=myTselection&repository=smartschool_ha&category=integration)
+  - [![Open your Home Assistant instance and open the repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg?style=flat-square)](https://my.home-assistant.io/redirect/hacs_repository/?owner=myTselectionPublic&repository=smartschool_ha&category=integration)
   - or add this repository as custom repository into your HACS
   - or merge this repo 'custom components' folder into your local HA 'custom components' folder
 - Restart Home Assistant
@@ -105,13 +105,13 @@ Still testing the options of this calendar integration.
 
 ## Status
 
-Still some optimisations are planned, see [Issues](https://github.com/myTselection/smartschool_ha/issues) section in GitHub.
+Still some optimisations are planned, see [Issues](https://github.com/myTselectionPublic/smartschool_ha/issues) section in GitHub.
 
 ## Technical pointers
 The main logic and API connection related code can be found within source code smartschool_ha/custom_components/smartschool_ha:
-- [sensor.py](https://github.com/myTselection/smartschool_ha/blob/main/custom_components/smartschool_ha/sensor.py)
-- [todo.py](https://github.com/myTselection/smartschool_ha/blob/main/custom_components/smartschool_ha/tddo.py)
-- [utils.py](https://github.com/myTselection/smartschool_ha/blob/main/custom_components/smartschool_ha/utils.py) -> mainly pointer to Smartschool class
+- [sensor.py](https://github.com/myTselectionPublic/smartschool_ha/blob/main/custom_components/smartschool_ha/sensor.py)
+- [todo.py](https://github.com/myTselectionPublic/smartschool_ha/blob/main/custom_components/smartschool_ha/tddo.py)
+- [utils.py](https://github.com/myTselectionPublic/smartschool_ha/blob/main/custom_components/smartschool_ha/utils.py) -> mainly pointer to Smartschool class
 
 All other files just contain boilerplat code for the integration to work wtihin HA or to have some constants/strings/translations.
 
@@ -125,8 +125,8 @@ logger:
 
 ## Example usage & screenshots:
 
-<p align="left"><img src="https://github.com/myTselection/smartschool_ha/blob/main/Example1.png?raw=true"/></p>
+<p align="left"><img src="https://github.com/myTselectionPublic/smartschool_ha/blob/main/Example1.png?raw=true"/></p>
 
-<p align="left"><img src="https://github.com/myTselection/smartschool_ha/blob/main/Setup.png?raw=true"/></p>
+<p align="left"><img src="https://github.com/myTselectionPublic/smartschool_ha/blob/main/Setup.png?raw=true"/></p>
 
-<p align="left"><img src="https://github.com/myTselection/smartschool_ha/blob/main/Sensors.png?raw=true"/></p>
+<p align="left"><img src="https://github.com/myTselectionPublic/smartschool_ha/blob/main/Sensors.png?raw=true"/></p>
