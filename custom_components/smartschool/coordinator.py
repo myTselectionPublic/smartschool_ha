@@ -83,7 +83,10 @@ class ComponentUpdateCoordinator(DataUpdateCoordinator):
                 "FY": "📐 ",
                 "BI": "🌱 ",
                 "LEEFS & TRAJ": "🗝️ ",
-                "Algemeen": "🚩 "
+                "Algemeen": "🚩 ",
+                "PROJ": "🎯",
+                "KUBE": "🎨",
+                "SOPS": "🧠",
         }
 
     async def async_initialize(self):
