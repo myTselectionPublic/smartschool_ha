@@ -315,6 +315,13 @@ class Smartschool:
 
             if match := re.search(r"JSON\s*\.\s*parse\s*\(\s*'(.*)'\s*\)\s*\)\s*;?\s*$", script.text, flags=re.IGNORECASE):
                 result = re.sub(r"\\u([0-9a-fA-F]{4})", lambda m: chr(int(m.group(1), 16)), match.group(1))
+                try:
+                    data = json.loads(result)
+                except json.JSONDecodeError:
+                    try:
+                        data = json.loads(result.replace("\\\\", "\\"))
+                    except json.JSONDecodeError as e:
+                        raise SmartSchoolAuthenticationError(f"Could not parse verification response: {e}") from e
                 data = json.loads(result.replace("\\\\", "\\"))
                 with contextlib.suppress(KeyError, TypeError, IndexError):
                     self.authenticated_user = data["vars"]["authenticatedUser"]
