@@ -479,7 +479,7 @@ class ComponentUpdateCoordinator(DataUpdateCoordinator):
                 list_id = current_list_taken
                 # action_icon = "🤯"
                 action_icon = "🛠️🛠️"
-            elif task_type or (PLANNER_LABEL_TOETS, PLANNER_LABEL_INHAALTOETS, PLANNER_LABEL_HERHALINGSTOETS, PLANNER_LABEL_EXAMEN):
+            elif task_type in (PLANNER_LABEL_TOETS, PLANNER_LABEL_INHAALTOETS, PLANNER_LABEL_HERHALINGSTOETS, PLANNER_LABEL_EXAMEN):
                 list_id = current_list_toetsen
                 # action_icon = "🤯"
                 action_icon = "💡"
