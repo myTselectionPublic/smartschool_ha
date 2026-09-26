@@ -69,6 +69,52 @@ A sensor `sensor.smartschool_[username]_[school]_results` will be added showing 
 Since the results are not always available (some schools only make them available at specific intervals), this hasn't been tested yet. Extra results per course might be made availble later on, once tested.
 The sensor also shows the last update from Smartschool in the attribut last_update.
 
+#### Example results markdown:
+
+```
+type: markdown
+content: >
+  {% set ignored = [
+    'total result',
+    'attribution',
+    'friendly_name',
+    'icon',
+    'last update',
+    'school',
+    'unit_of_measurement',
+    'username',
+    'entity_picture'
+  ] %}
+
+
+  {% set sensors = states.sensor
+    | selectattr('entity_id', 'match', '^sensor\.smartschool\_.*\_.*_results$')
+    | list %}
+
+  {% for sensor in sensors %}
+
+  | Vak | Resultaat |
+
+  |:-------|-------:|{% for key, value in sensor.attributes.items() %}{% if key
+  not in ignored %}{% set value_string = value | string | replace('%', '') %}{%
+  set numeric_value = value_string | float(0) %}
+    {% if numeric_value < 50 %}| {{ key }} | <font color="red">**{{ value }}**</font> |{% else %}| {{ key }} | {{ value }} |{% endif %}{% endif %}{% endfor %}{% if
+  sensor.attributes.get('total result') is not none %}
+
+  | **Totaal resultaat** | **{{ sensor.attributes.get('total result') }}** |
+
+  {% endif %}
+
+
+  {% if not loop.last %}
+
+  ---
+
+  {% endif %}
+
+  {% endfor %}
+```
+
 ### Button
 
 Per Smartschool account, a "Button" is available to mark all UNREAD smartschool messages as read at once.
