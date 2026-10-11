@@ -475,7 +475,17 @@ class ComponentUpdateCoordinator(DataUpdateCoordinator):
             task_type_abbreviation = plannerItem.assignmentType.abbreviation if plannerItem.assignmentType else ''
             assignment_description = plannerItem.name
             summary = f"{course_icon}{course_name} {task_type}, {task_weekday} {lesson_hour}"
-            if task_type == PLANNER_LABEL_TAAK:
+            is_personal_to_do = plannerItem.plannedElementType == "planned-to-dos" and plannerItem.assignmentType is None
+            due = plannerItem.period.dateTimeFrom
+            if is_personal_to_do:
+                task_type = PLANNER_LABEL_TAAK
+                list_id = current_list_taken
+                action_icon = "🛠️"
+                if plannerItem.period.wholeDay:
+                    due = due.date()
+                    lesson_hour = ""
+                summary = f"{course_icon}{course_name} {task_type}, {task_weekday} {lesson_hour}".rstrip()
+            elif task_type == PLANNER_LABEL_TAAK:
                 list_id = current_list_taken
                 action_icon = "🛠️"
             elif task_type == PLANNER_LABEL_GROTE_TAAK:
@@ -508,19 +518,23 @@ class ComponentUpdateCoordinator(DataUpdateCoordinator):
                 summary=summary,
                 status=TodoItemStatus(status),
                 description=assignment_description,
-                due=plannerItem.period.dateTimeFrom
+                due=due
             ))
             
             if plannerItem.period.dateTimeFrom == None or plannerItem.period.dateTimeFrom.strftime("%Y-%m-%d") == next_schoolday:
                 number_of_tasks_next = number_of_tasks_next + 1
                 summary_next = f"{action_icon} {course_icon}{course_name}: {task_type}, {lesson_hour}"
+                if is_personal_to_do:
+                    summary_next = f"{action_icon} {plannerItem.name}"
+                    if lesson_hour:
+                        summary_next += f", {lesson_hour}"
                 description_next = assignment_description
                 new_lists[current_list_volgende].append(TodoItem(
                     uid=plannerItem.id,
                     summary=f"{summary_next}",
                     status=TodoItemStatus(status),
                     description=description_next,
-                    due=plannerItem.period.dateTimeFrom
+                    due=due
                 ))
 
                 

@@ -138,6 +138,7 @@ Per Smartschool account, a "Button" is available to mark all UNREAD smartschool 
     - for other lists, the title contains the course name and the description contains the details of the action
   - **Taken** (`todo.taken_[username]`):
     - All upcoming tasks to do, known for coming days
+    - Personal planner to-dos without an assignment type are handled as "Taak", including all-day and timed entries. They also appear in "Volgende" when due the next schoolday.
   - **Toetsen** (`todo.toetsen_[username]`):
     - All upcoming tests scheduled, known for coming days
 
