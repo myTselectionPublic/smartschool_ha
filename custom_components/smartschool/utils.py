@@ -1,5 +1,7 @@
 import json
 import logging
+import hashlib
+from pathlib import Path
 import pprint
 from collections import defaultdict
 from datetime import date, datetime, timedelta
@@ -44,17 +46,32 @@ from .smartschool_api import (
 )
 
 class ComponentSession(object):
-    def __init__(self):
+    def __init__(self, cookie_directory=None):
         self.smartschool = None
         self.creds = None
+        self._cookie_directory = Path(cookie_directory) if cookie_directory else None
 
     
     @sleep_and_retry
     @limits(calls=1, period=5)
     def login(self, username, password, smartschool_domain, mfa):
-        _LOGGER.info("Trying to login to Smartschool")
-        self.creds = AppCredentials(username, password, smartschool_domain, mfa)
-        self.smartschool = Smartschool(creds=self.creds)
+        creds = AppCredentials(username, password, smartschool_domain, mfa)
+        creds.validate()
+        if self.smartschool is not None and creds == self.creds:
+            _LOGGER.debug("Reusing existing Smartschool session")
+            return {}
+
+        _LOGGER.info("Creating Smartschool session")
+        cookie_file = None
+        if self._cookie_directory is not None:
+            account = json.dumps([creds.main_url.lower(), creds.username])
+            account_key = hashlib.sha256(account.encode("utf-8")).hexdigest()
+            cookie_file = self._cookie_directory / f"{account_key}.cookies"
+        smartschool = Smartschool(creds=creds, cookie_file=cookie_file)
+        if self.smartschool is not None:
+            self.smartschool._session.close()
+        self.creds = creds
+        self.smartschool = smartschool
         return {}
 
     @sleep_and_retry

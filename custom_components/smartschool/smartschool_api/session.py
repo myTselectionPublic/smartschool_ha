@@ -6,11 +6,13 @@ import json
 import time
 import re
 import logging
+import os
+import tempfile
 import datetime # Added import
 import requests # Added import
 # import httpx
 # import http.cookiejar
-from http.cookiejar import LWPCookieJar
+from http.cookiejar import LWPCookieJar, LoadError
 from requests import Session
 from dataclasses import dataclass, field
 from functools import cached_property
@@ -38,9 +40,11 @@ def _handle_cookies_and_login(func):
         if self.creds is None:
             raise RuntimeError("Smartschool instance must have valid credentials.")
 
-        self._try_login()  # Ensures login/session validity
-
-        return func(self, *args, **kwargs)
+        try:
+            self._try_login()  # Ensures login/session validity
+            return func(self, *args, **kwargs)
+        finally:
+            self._save_cookies()
 
     return inner
 
@@ -48,7 +52,9 @@ def _handle_cookies_and_login(func):
 @dataclass
 class Smartschool:
     creds: Credentials = None
+    cookie_file: Path | None = None
     authenticated_user: dict | None = field(init=False, default=None)
+    _saved_cookie_state: str | None = field(init=False, default=None, repr=False)
     
     # _session = httpx.Client(http2=True)
     _session: Session = field(init=False)
@@ -60,6 +66,17 @@ class Smartschool:
         self._session = Session()
         if self.creds is not None:
             self.creds.validate()
+        if self.cookie_file is not None:
+            self.cookie_file = Path(self.cookie_file)
+            self._session.cookies = LWPCookieJar(str(self.cookie_file))
+            try:
+                # Keep session cookies across HA restarts, but honor expiry.
+                self._session.cookies.load(ignore_discard=True, ignore_expires=False)
+            except FileNotFoundError:
+                pass
+            except (OSError, LoadError):
+                self._session.cookies.clear()
+                logger.warning("Could not load Smartschool cookies; a new login will be required.")
         # Apply decorator to post and get methods *after* the decorator is defined
         # Ensure the methods exist on the class *before* this step
         self.post = types.MethodType(_handle_cookies_and_login(Smartschool.post), self)
@@ -110,6 +127,29 @@ class Smartschool:
         #                               "Accept-Encoding": "gzip, deflate, br, zstd",
         #                               "Accept-Language": "en-US,en;q=0.9"})
 
+
+    def _save_cookies(self) -> None:
+        """Persist changed cookies atomically, without blocking data on disk errors."""
+        if self.cookie_file is None:
+            return
+        temporary_path = None
+        try:
+            state = self._session.cookies.as_lwp_str(ignore_discard=True, ignore_expires=False)
+            if state == self._saved_cookie_state:
+                return
+            self.cookie_file.parent.mkdir(parents=True, exist_ok=True)
+            # NamedTemporaryFile creates an owner-only file on POSIX systems.
+            with tempfile.NamedTemporaryFile(dir=self.cookie_file.parent, delete=False) as temporary:
+                temporary_path = Path(temporary.name)
+            self._session.cookies.save(str(temporary_path), ignore_discard=True, ignore_expires=False)
+            os.replace(temporary_path, self.cookie_file)
+            self._saved_cookie_state = state
+        except OSError:
+            logger.warning("Could not save Smartschool cookies; they may not survive a restart.")
+        finally:
+            if temporary_path is not None:
+                with contextlib.suppress(OSError):
+                    temporary_path.unlink(missing_ok=True)
 
     def _try_login(self) -> None:
         """

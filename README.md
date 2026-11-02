@@ -53,6 +53,8 @@ This application has been [forked and extended](https://github.com/myTselectionP
 
 After adding Smartschool account, sensors and todo lists will be added.
 
+The integration reuses its login session between refreshes and stores cookies per account in Home Assistant's `.storage/smartschool/` directory. This also preserves cookies across integration reloads and Home Assistant restarts, reducing repeated logins and Smartschool's "new device" notifications. A notification may still occur on the first login or when Smartschool expires or revokes the session. If saved cookies cannot be read, the integration starts a fresh login automatically.
+
 ### Sensors:
 
 - **Tasks**

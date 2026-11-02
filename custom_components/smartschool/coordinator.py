@@ -52,7 +52,8 @@ class ComponentUpdateCoordinator(DataUpdateCoordinator):
         self._lists = {}  # list_id -> list[TodoItem]
         self._last_updated = None
         self._hass = hass
-        self._session = ComponentSession()
+        self._cookie_directory = hass.config.path(".storage", DOMAIN, config_entry.entry_id)
+        self._session = ComponentSession(cookie_directory=self._cookie_directory)
         self._agenda = None
         self._numberOfTasksNext = None
         self._messages = None
@@ -100,7 +101,7 @@ class ComponentUpdateCoordinator(DataUpdateCoordinator):
         try:
             _LOGGER.debug(f"{DOMAIN} ComponentUpdateCoordinator update started, username: {self._username}, smartschool_domain: {self._smartschool_domain}, mfa: *******")
             if not(self._session):
-                self._session = ComponentSession()
+                self._session = ComponentSession(cookie_directory=self._cookie_directory)
 
             if self._session:
                 self._userdetails = await self._hass.async_add_executor_job(lambda: self._session.login(self._username, self._password, self._smartschool_domain, self._mfa))
