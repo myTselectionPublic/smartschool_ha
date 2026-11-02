@@ -73,8 +73,8 @@ class Planner:
         )
 
     def __iter__(self) -> Iterator[PlannedElement]:
-        
-        for element in self.smartschool.json(f"/planner/api/v1/planned-elements/user/{self.smartschool.authenticated_user['id']}?from={self.from_date.isoformat()}&to={self.till_date.isoformat()}&types={self.type}", 
+        user = self.smartschool.get_authenticated_user()
+        for element in self.smartschool.json(f"/planner/api/v1/planned-elements/user/{user['id']}?from={self.from_date.isoformat()}&to={self.till_date.isoformat()}&types={self.type}",
                                              method="get", 
                                             #  data={"from": self.from_date.isoformat(), "to": self.till_date.isoformat(), "types": "planned-to-dos,planned-lesson-cluster-assignments,planned-assignments"},
                                              headers={

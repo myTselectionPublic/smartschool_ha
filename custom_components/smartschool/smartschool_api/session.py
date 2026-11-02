@@ -22,7 +22,7 @@ import types
 
 
 from .common import bs4_html, get_all_values_from_form
-from .exceptions import SmartSchoolAuthenticationError, SmartSchoolException # Corrected casing
+from .exceptions import SmartSchoolAuthenticationError, SmartSchoolException, SmartSchoolParsingError
 
 if TYPE_CHECKING:  # pragma: no cover
     from requests import Response
@@ -137,6 +137,7 @@ class Smartschool:
                  logger.debug("Session appears to be valid based on GET /. Skipping login.")
                  # Save cookies just in case they were updated by the check
                 #  self._session.cookies.save(ignore_discard=True)
+                 self._extract_authenticated_user(check_resp)
                  return # Session is valid
             else:
                  logger.warning(f"Session check GET / resulted in unexpected state: Status {check_resp.status_code}, URL {final_url}")
@@ -147,6 +148,7 @@ class Smartschool:
             # Fall through to login attempt
 
         # 2. Perform full login/verification flow if check failed or indicated need
+        self.authenticated_user = None
         logger.debug("Performing full login/verification flow.")
         try:
             # Get login page first, follow redirects to see where we land
@@ -173,6 +175,7 @@ class Smartschool:
                 logger.info(f"GET /login redirected to {final_login_get_url}. Assuming session is valid and complete.")
                 # We trust this redirect indicates success. Save cookies and return.
                 # self._session.cookies.save(ignore_discard=True)
+                self._extract_authenticated_user(login_page_resp)
                 return # Assume success based on redirect
 
             # 3. Final verification after login/verification attempt
@@ -184,6 +187,7 @@ class Smartschool:
                 logger.error(f"Login/Verification process ended with status {final_resp.status_code} at {final_resp.url}")
                 raise SmartSchoolAuthenticationError(f"Authentication failed, status {final_resp.status_code} at {final_resp.url}") # Corrected casing
             else:
+                self._extract_authenticated_user(final_resp)
                 logger.debug("Login/Verification process completed successfully after _do_login/_complete_verification.")
                 # self._session.cookies.save(ignore_discard=True)
                 # # After request
@@ -216,6 +220,63 @@ class Smartschool:
                  raise SmartSchoolAuthenticationError(f"An unexpected error occurred during authentication: {e}") from e # Corrected casing
             else:
                  raise # Re-raise specific auth errors
+
+    def _extract_authenticated_user(self, response: Response) -> None:
+        """Read page bootstrap data without depending on script order or layout."""
+        literal_pattern = re.compile(
+            r"JSON\s*\.\s*parse\s*\(\s*(\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*')\s*\)",
+            re.DOTALL,
+        )
+
+        def decode_escape(match):
+            escape = match.group(0)
+            if escape == "\\'":
+                return "'"
+            if escape.startswith("\\x"):
+                return chr(int(escape[2:], 16))
+            if escape in ("\\\n", "\\\r\n", "\\\r"):
+                return ""
+            return json.loads('"' + escape + '"')
+
+        for script in bs4_html(response).select("script:not([src])"):
+            for match in literal_pattern.finditer(script.get_text()):
+                literal = match.group(1)
+                try:
+                    if literal.startswith('"'):
+                        payload = json.loads(literal)
+                    else:
+                        payload = re.sub(
+                            r"\\(?:u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|\r\n|[\s\S])",
+                            decode_escape,
+                            literal[1:-1],
+                        )
+                    data = json.loads(payload)
+                except (ValueError, TypeError):
+                    continue
+                if not isinstance(data, dict) or not isinstance(data.get("vars"), dict):
+                    continue
+                user = data["vars"].get("authenticatedUser")
+                if isinstance(user, dict) and user.get("id") is not None:
+                    self.authenticated_user = user
+                    return
+
+    def get_authenticated_user(self) -> dict:
+        """Load the signed-in identity before constructing user-specific URLs."""
+        if self.authenticated_user is None:
+            self._try_login()
+        if self.authenticated_user is None:
+            # A 2FA API response need not contain page bootstrap data. The user
+            # identity may only become available on the authenticated homepage.
+            response = self._session.get(self.create_url("/"), allow_redirects=True)
+            response.raise_for_status()
+            if str(response.url).endswith(("/login", "/account-verification", "/2fa")):
+                raise SmartSchoolAuthenticationError("Session is not authenticated after login.")
+            self._extract_authenticated_user(response)
+        if self.authenticated_user is None:
+            raise SmartSchoolParsingError(
+                "Signed in to Smartschool, but could not find the authenticated user ID in the page data."
+            )
+        return self.authenticated_user
 
     def _check_final_authentication(self) -> bool:
         """Helper to perform a final GET / check."""
@@ -308,26 +369,7 @@ class Smartschool:
         """
         logger.debug("Entering _complete_verification")
         html = bs4_html(verification_page_response)
-        for script in html.select("script"):
-            if script.get("src") or "extend" not in script.text:
-                logger.debug(f"extend source scritpt not found or script has src, skipping script tag: {script}")
-                continue
-
-            if match := re.search(r"JSON\s*\.\s*parse\s*\(\s*'(.*)'\s*\)\s*\)\s*;?\s*$", script.text, flags=re.IGNORECASE):
-                result = re.sub(r"\\u([0-9a-fA-F]{4})", lambda m: chr(int(m.group(1), 16)), match.group(1))
-                try:
-                    data = json.loads(result)
-                except json.JSONDecodeError:
-                    try:
-                        data = json.loads(result.replace("\\\\", "\\"))
-                    except json.JSONDecodeError as e:
-                        raise SmartSchoolAuthenticationError(f"Could not parse verification response: {e}") from e
-                data = json.loads(result.replace("\\\\", "\\"))
-                with contextlib.suppress(KeyError, TypeError, IndexError):
-                    self.authenticated_user = data["vars"]["authenticatedUser"]
-                    logger.debug(f"Authenticated user info extracted: {self.authenticated_user}")
-                    break
-                    # return
+        self._extract_authenticated_user(verification_page_response)
         current_verification_url = str(verification_page_response.url) # URL we are currently on
 
         # Parse verification form
@@ -387,50 +429,12 @@ class Smartschool:
 
     def _complete_verification_2fa(self, verification_page_response: Response) -> Response:
         """
-        Completes the verification step by submitting the birth date.
+        Completes the verification step by submitting an authenticator code.
         Returns the *final* response object after the verification POST.
         """
         logger.debug("Entering _complete_verification_2fa")
-        html = bs4_html(verification_page_response)
-        for script in html.select("script"):
-            if script.get("src") or "extend" not in script.text:
-                # logger.debug(f"extend source scritpt not found or script has src, skipping script tag: {script}")
-                continue
-            # if match := re.search(r"JSON\s*\.\s*parse\s*\(\s*'(.*)'\s*\)\s*\)\s*;?\s*$", script.text, flags=re.IGNORECASE):
-            #     result = re.sub(r"\\u([0-9a-fA-F]{4})", lambda m: chr(int(m.group(1), 16)), match.group(1))
-            #     data = json.loads(result.replace("\\\\", "\\"))
-            if match := re.search(r"JSON\s*\.\s*parse\s*\(\s*'(.*)'\s*\)\s*\)\s*;?\s*$",
-                                script.text, flags=re.IGNORECASE | re.DOTALL):
-                raw = match.group(1)
+        self._extract_authenticated_user(verification_page_response)
 
-                # 1) restore escaped single quotes (JS single-quoted string)
-                raw = raw.replace("\\'", "'")
-
-                # 2) escape any backslash that is NOT followed by a valid JSON escape char
-                #    valid JSON escapes are: " \ / b f n r t and uXXXX
-                #    The negative lookahead says: if backslash is followed by none of those, double it.
-                safe = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', raw)
-
-                # 3) Now safe should be a valid JSON text string (with \uXXXX preserved).
-                try:
-                    data = json.loads(safe)
-                except json.JSONDecodeError:
-                    # Extra fallback: log snippet for debugging and try a gentler unescape
-                    logger.debug("json.loads failed on safe string; dumping snippet for inspection")
-                    logger.debug("offending snippet: %s", safe[:1000])  # don't log entire huge blob
-                    # Optionally try a last-resort unescape via unicode_escape (caveat: may change semantics)
-                    try:
-                        alt = safe.encode('utf-8').decode('unicode_escape')
-                        data = json.loads(alt)
-                    except Exception:
-                        # re-raise original decode error for the caller
-                        raise
-                with contextlib.suppress(KeyError, TypeError, IndexError):
-                    self.authenticated_user = data["vars"]["authenticatedUser"]
-                    logger.debug(f"Authenticated user info extracted: {self.authenticated_user}")
-                    break
-                    # return
-        
         # check_resp = self._session.get(self.create_url("/2fa/api/v1/config"), follow_redirects=True)
         check_resp = self._session.get(self.create_url("/2fa/api/v1/config"), allow_redirects=True)
         check_resp.raise_for_status()
