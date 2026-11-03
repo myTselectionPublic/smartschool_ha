@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import logging
+import math
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.components.todo import TodoItem, TodoItemStatus
@@ -60,6 +61,7 @@ class ComponentUpdateCoordinator(DataUpdateCoordinator):
         self._results = None
         self._planner_assignments = None
         self._total_result = None
+        self._result_details = []
         
         #  🇫🇷🇳🇱✝️🌎🎼🏛️🏺📜🧮🟰🏀🎨🤯🚸
         self._course_icons = {
@@ -210,59 +212,98 @@ class ComponentUpdateCoordinator(DataUpdateCoordinator):
         self._total_number_of_messages
             
 
+        self.extract_results()
+
+    def extract_results(self):
+        """Build individual result details and the counted course totals."""
         self._total_result = None
+        self._result_details = []
         self._results_per_course = {}
         self._results_per_course_max = {}
         subtotal = 0
         max_score = 0
         numberOfResults = 0
         
-        _LOGGER.debug(f"{DOMAIN} planner: {self._planner_assignments}")
         _LOGGER.debug(f"{DOMAIN} results: {self._results}")
         if self._results is None or len(self._results) == 0:
             _LOGGER.debug(f"{DOMAIN} no results found for user {self._unique_user_id}")
             return
         for result in self._results:
+            detail = self.result_detail(result)
+            self._result_details.append(detail)
             if result.doesCount and result.type == "normal":
                 numberOfResults = numberOfResults + 1
-                desc = getattr(result.graphic, "description", "") or ""
-                current_result = 0.0
-                max_current_result = 0.0
-                if "/" in desc:
-                    try:
-                        parts = desc.split("/", 1)
-                        current_result = float(parts[0].strip().replace(",", "."))
-                        max_current_result = float(parts[1].strip().replace(",", "."))
-                    except (ValueError, TypeError):
-                        # keep defaults (0.0) if parsing fails
-                        _LOGGER.warning(f"{DOMAIN} Failed to parse result description: '{desc}' for result {result}. Expected format 'current/max'.")
-                        pass
-                else:
+                current_result = detail["obtained"]
+                max_current_result = detail["maximum"]
+                if current_result is None or max_current_result is None:
                     continue
-                _LOGGER.debug(f"{DOMAIN} parsed result: {current_result}, max_current_result: {max_current_result} from description: '{desc}' for result {result}")
                 subtotal = subtotal + current_result
                 max_score = max_score + max_current_result
                 course_name = result.courses[0].name if result.courses else "Unknown Course"
                 course_name = course_name.split(" - ")[0] if " - " in course_name else course_name
-                currentCourseResult = self._results_per_course.get(f"{course_name} ({result.courses[0].teachers[0].name.startingWithLastName})", {})
-                currentCourseResultMax = self._results_per_course_max.get(f"{course_name} ({result.courses[0].teachers[0].name.startingWithLastName})", {})
+                teacher_name = (result.courses[0].teachers[0].name.startingWithLastName
+                                if result.courses and result.courses[0].teachers else detail["teacher"])
+                course_key = f"{course_name} ({teacher_name})"
+                component_name = detail["category"]
+                currentCourseResult = self._results_per_course.get(course_key, {})
+                currentCourseResultMax = self._results_per_course_max.get(course_key, {})
                 if currentCourseResult == {}:
-                    self._results_per_course[f"{course_name} ({result.courses[0].teachers[0].name.startingWithLastName})"] = currentCourseResult
-                    self._results_per_course_max[f"{course_name} ({result.courses[0].teachers[0].name.startingWithLastName})"] = currentCourseResultMax
-                currentComponentResult = currentCourseResult.get(result.component.name, None)
+                    self._results_per_course[course_key] = currentCourseResult
+                    self._results_per_course_max[course_key] = currentCourseResultMax
+                currentComponentResult = currentCourseResult.get(component_name, None)
                 if currentComponentResult is None:
-                    currentCourseResult[result.component.name] = current_result
-                    currentCourseResultMax[result.component.name] = max_current_result
+                    currentCourseResult[component_name] = current_result
+                    currentCourseResultMax[component_name] = max_current_result
                 else:
-                    currentComponentResultMax = currentCourseResultMax.get(result.component.name, 0)
-                    currentCourseResult[result.component.name] = (currentComponentResult + current_result)
-                    currentCourseResultMax[result.component.name] = currentComponentResultMax + max_current_result
+                    currentComponentResultMax = currentCourseResultMax.get(component_name, 0)
+                    currentCourseResult[component_name] = (currentComponentResult + current_result)
+                    currentCourseResultMax[component_name] = currentComponentResultMax + max_current_result
         
         _LOGGER.debug(f"{DOMAIN} results per course: {self._results_per_course}")
         _LOGGER.debug(f"{DOMAIN} results per course max: {self._results_per_course_max}")
         if numberOfResults > 0 and max_score > 0: 
             self._total_result = round((subtotal / max_score) * 100, 0)
         return
+
+    def result_detail(self, result):
+        """Return JSON-serializable fields, retaining unscored evaluations."""
+        obtained = maximum = None
+        description = getattr(result.graphic, "description", "") or ""
+        if "/" in description:
+            try:
+                obtained, maximum = (
+                    float(part.strip().replace(",", "."))
+                    for part in description.split("/", 1)
+                )
+                if not (math.isfinite(obtained) and math.isfinite(maximum)):
+                    obtained = maximum = None
+            except (ValueError, TypeError):
+                obtained = maximum = None
+                _LOGGER.warning("%s Failed to parse result description: %r", DOMAIN, description)
+
+        teachers = [teacher for course in result.courses for teacher in course.teachers]
+        if not teachers and result.gradebookOwner:
+            teachers = [result.gradebookOwner]
+        teacher_names = list(dict.fromkeys(
+            teacher.name.startingWithLastName or teacher.name.startingWithFirstName
+            for teacher in teachers
+        ))
+        feedback = list(dict.fromkeys(
+            item.text for item in [*(result.feedback or []), *(result.feedbacks or [])]
+            if item.text
+        ))
+        return {
+            "subject": ", ".join(course.name.split(" - ")[0] for course in result.courses) or "Unknown Course",
+            "category": result.component.name if result.component else result.type,
+            "date": result.date.isoformat(),
+            "title": result.name,
+            "obtained": obtained,
+            "maximum": maximum,
+            "percentage": round(obtained / maximum * 100, 2)
+            if obtained is not None and maximum is not None and maximum > 0 else None,
+            "teacher": ", ".join(teacher_names),
+            "feedback": "\n".join(feedback),
+        }
 
     def schoolbag_from_agenda(self, current_list_schooltas, new_lists, valid_uids, next_schoolday, next_schooldayDate):
         for agendaItem in self._agenda:
@@ -569,6 +610,9 @@ class ComponentUpdateCoordinator(DataUpdateCoordinator):
     
     def get_total_result(self):
         return self._total_result
+
+    def get_result_details(self):
+        return self._result_details
 
     def get_results_per_course(self):
         return self._results_per_course

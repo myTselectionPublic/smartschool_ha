@@ -71,6 +71,10 @@ A sensor `sensor.smartschool_[username]_[school]_results` will be added showing 
 Since the results are not always available (some schools only make them available at specific intervals), this hasn't been tested yet. Extra results per course might be made availble later on, once tested.
 The sensor also shows the last update from Smartschool in the attribut last_update.
 
+The `result_details` attribute contains a JSON-compatible list of all available evaluations, including results that do not count toward the total. Each entry contains `subject`, `category` (the result component, falling back to the evaluation type), `date` (ISO 8601), `title`, `obtained`, `maximum`, `percentage` (0–100), `teacher`, and `feedback`. Scores are numeric; unavailable scores and percentages are `null`. Multiple teachers are comma-separated and feedback entries are joined with newlines. Missing feedback is an empty string.
+
+For example, access the list in a Home Assistant template with `state_attr('sensor.smartschool_username_school_results', 'result_details')`.
+
 #### Example results markdown:
 
 ```
@@ -78,6 +82,7 @@ type: markdown
 content: >
   {% set ignored = [
     'total result',
+    'result_details',
     'attribution',
     'friendly_name',
     'icon',

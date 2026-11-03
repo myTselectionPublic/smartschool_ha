@@ -107,6 +107,7 @@ class ComponentData:
         self._total_result = None
         self._results_per_course = None
         self._results_per_course_max = None
+        self._result_details = []
         
 
     async def update(self):        
@@ -119,6 +120,7 @@ class ComponentData:
         self._total_result = self._coordinator.get_total_result()
         self._results_per_course = self._coordinator.get_results_per_course()
         self._results_per_course_max = self._coordinator.get_results_per_course_max()
+        self._result_details = self._coordinator.get_result_details()
 
     @property
     def unique_id(self):
@@ -335,6 +337,7 @@ class ComponentResultsSensor(Entity):
             ATTR_ATTRIBUTION: NAME,
             "last update": self._last_update,
             "total result": f"{self._data._total_result}%",
+            "result_details": self._data._result_details,
             "username": self._username,
             "school": self._school,
             "entity_picture": "https://raw.githubusercontent.com/myTselection/smartschool_ha/master/icon.png"
