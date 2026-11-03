@@ -75,6 +75,8 @@ The `result_details` attribute contains a JSON-compatible list of all available 
 
 For example, access the list in a Home Assistant template with `state_attr('sensor.smartschool_username_school_results', 'result_details')`.
 
+Enable or disable **Include individual result details in the results sensor** during setup or under **Settings → Devices & services → Smartschool → Configure**. It defaults to enabled, including for existing accounts. Saving the option reloads the integration automatically; disabling it removes the `result_details` attribute while retaining the total and per-course results.
+
 #### Example results markdown:
 
 ```
@@ -119,6 +121,89 @@ content: >
 
   {% endif %}
 
+  {% endfor %}
+```
+
+#### Example result compact markdown:
+
+```yaml
+type: markdown
+content: >
+  {% set ignored = [
+    'total result',
+    'result_details',
+    'attribution',
+    'friendly_name',
+    'icon',
+    'last update',
+    'school',
+    'unit_of_measurement',
+    'username',
+    'entity_picture'
+  ] %}
+
+
+  {% set sensors = states.sensor
+    | selectattr('entity_id', 'match', '^sensor\.smartschool_.*\_.*_results$')
+    | list %}
+
+  {% for sensor in sensors %}
+
+
+  <details><summary><b>Totaal: {{ sensor.attributes.get('total result')
+  }}</b></summary>
+
+    | Vak | Resultaat |
+    |:-------|-------:|{% for key, value in sensor.attributes.items() %}{% if key
+    not in ignored %}{% set value_string = value | string | replace('%', '') %}{%
+    set numeric_value = value_string | float(0) %}
+    {% if numeric_value < 50 %}| {{ key }} | <font color="red">**{{ value }}**</font> |{% else %}| {{ key }} | {{ value }} |{% endif %}{% endif %}{% endfor %}{% if
+    sensor.attributes.get('total result') is not none %}
+    | **Totaal resultaat** | **{{ sensor.attributes.get('total result') }}** |
+
+    {% endif %}
+  </details>
+
+  {% endfor %}
+```
+
+#### Example result details markdown:
+
+Add this as a separate Markdown card alongside the course overview above. Enable **Include individual result details in the results sensor** under the integration's **Configure** action. This card shows each evaluation, newest first, for every Smartschool results sensor. Unavailable scores are shown as `—`.
+
+```yaml
+type: markdown
+title: Resultaten per toets
+content: |
+  {% macro text(value) -%}
+    {{ value | string | replace('|', '&#124;') | replace('\r', '') | replace('\n', '<br>') }}
+  {%- endmacro %}
+  {% set sensors = states.sensor
+    | selectattr('entity_id', 'match', '^sensor[.]smartschool_.*_results$')
+    | list %}
+  {% for sensor in sensors %}
+  ## {{ sensor.attributes.get('username', sensor.name) }}
+
+  {% set results = sensor.attributes.get('result_details', []) %}
+  {% for result in results | sort(attribute='date', reverse=true) %}
+  ### {{ text(result.subject) }}: {{ text(result.title) }}
+
+  | | Details |
+  |:---|:---|
+  | Datum | {{ text(result.date[:10]) }} |
+  | Categorie | {{ text(result.category) }} |
+  | Behaald | {{ result.obtained if result.obtained is not none else '—' }} |
+  | Maximum | {{ result.maximum if result.maximum is not none else '—' }} |
+  | Percentage | {{ (result.percentage ~ '%') if result.percentage is not none else '—' }} |
+  | Leerkracht | {{ text(result.teacher) }} |
+  | Feedback | {{ text(result.feedback) if result.feedback else '—' }} |
+
+  {% else %}
+  Geen resultaatdetails beschikbaar. Controleer of de optie is ingeschakeld.
+
+  {% endfor %}
+  {% else %}
+  Geen Smartschool-resultatensensoren gevonden.
   {% endfor %}
 ```
 

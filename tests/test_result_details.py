@@ -72,6 +72,7 @@ def test_details_and_sensor_attribute(coordinator):
     sensor = sensor_cls()
     sensor._data = SimpleNamespace(
         _total_result=coordinator._total_result,
+        _include_result_details=True,
         _result_details=coordinator.get_result_details(),
         _results_per_course=coordinator._results_per_course,
         _results_per_course_max=coordinator._results_per_course_max,
@@ -80,6 +81,10 @@ def test_details_and_sensor_attribute(coordinator):
     attrs = sensor.extra_state_attributes
     assert attrs["result_details"] == expected
     assert attrs["total result"] == attrs["Mathematics (Peeters Lotte) - Test"] == "75.0%"
+    sensor._data._include_result_details = False
+    without_details = sensor.extra_state_attributes
+    assert "result_details" not in without_details
+    assert without_details == {key: value for key, value in attrs.items() if key != "result_details"}
 
 
 def test_all_evaluations_are_included_but_only_counted_normal_results_affect_total(coordinator):

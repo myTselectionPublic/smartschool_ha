@@ -7,7 +7,8 @@
                     "smartschool_domain": "Smartschool domain (bv: school.smartschool.be)",
                     "username": "Gebruikersnaam",
                     "password": "Wachtwoord",
-                    "mfa": "Google Authenticator 2FA geheimcode of geboortedatum (YYYY-MM-DD) voor kind account"
+                    "mfa": "Google Authenticator 2FA geheimcode of geboortedatum (YYYY-MM-DD) voor kind account",
+                    "include_result_details": "Details van afzonderlijke resultaten opnemen in de resultatensensor"
                 }
             },
             "edit": {
@@ -19,7 +20,6 @@
                     "mfa": "Google Authenticator 2FA geheimcode of geboortedatum (YYYY-MM-DD) voor kind account"
                 }
             }
-
         },
         "error": {
             "missing username": "Gelieve een geldige gebruikersnaam op te geven van Smartschool",
@@ -31,13 +31,10 @@
     },
     "options": {
         "step": {
-            "edit": {
-                "description": "Bewerk Smartschool integratie.",
+            "init": {
+                "description": "Kies of de resultatensensor details van elke evaluatie bevat.",
                 "data": {
-                    "smartschool_domain": "Smartschool domain (bv: school.smartschool.be)",
-                    "username": "Gebruikersnaam",
-                    "password": "Wachtwoord",
-                    "mfa": "Google Authenticator 2FA geheimcode of geboortedatum (YYYY-MM-DD) voor kind account"
+                    "include_result_details": "Details van afzonderlijke resultaten opnemen in de resultatensensor"
                 }
             }
         },

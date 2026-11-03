@@ -17,6 +17,8 @@ from homeassistant.const import (
 
 
 from .const import (
+    CONF_INCLUDE_RESULT_DETAILS,
+    DEFAULT_INCLUDE_RESULT_DETAILS,
     CONF_MFA,
     CONF_SMARTSCHOOL_DOMAIN
 )
@@ -57,6 +59,9 @@ def create_schema(entry, option=False):
     data_schema[
         vol.Required(CONF_MFA, description="Google Authenticator 2FA secret or date of birth (YYYY-MM-DD) for child account")
     ] = str
+    data_schema[vol.Optional(
+        CONF_INCLUDE_RESULT_DETAILS, default=DEFAULT_INCLUDE_RESULT_DETAILS
+    )] = bool
 
     return data_schema
 
@@ -134,46 +139,31 @@ class ComponentFlowHandler(BaseSetup, config_entries.ConfigFlow, domain=DOMAIN):
         """
         return self.async_create_entry(title="configuration.yaml", data={})
 
-    # @staticmethod
-    # @callback
-    # def async_get_options_flow(config_entry):  # TODO
-    #     """Get the options flow for this handler."""
-    #     return ComponentOptionsHandler(config_entry)
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        """Return the flow for configuring sensor options."""
+        return ComponentOptionsHandler()
 
 
-class ComponentOptionsHandler(config_entries.OptionsFlow, BaseSetup):
-    """Now this class isnt like any normal option handlers.. as ha devs option seems think options is
-    #  supposed to be EXTRA options, i disagree, a user should be able to edit anything.."""
-
-    def __init__(self, config_entry):
-        self.config_entry = config_entry
-        self.options = dict(config_entry.options)
-        self._errors = {}
+class ComponentOptionsHandler(config_entries.OptionsFlow):
+    """Configure whether the results sensor exposes individual evaluations."""
 
     async def async_step_init(self, user_input=None):
-
-        return self.async_show_form(
-            step_id="edit",
-            data_schema=vol.Schema(create_schema(self.config_entry, option=True)),
-            errors=self._errors,
-        )
-
-    async def async_step_edit(self, user_input):
-        # edit does not work.
         if user_input is not None:
-            await self.test_setup(user_input)
-            if ok:
-                self.hass.config_entries.async_update_entry(
-                    self.config_entry, data=user_input
-                )
-                return self.async_create_entry(title="", data={})
-            else:
-                self._errors["base"] = "missing data options handler"
-                # not suere this should be config_entry or user_input.
-                return self.async_show_form(
-                    step_id="edit",
-                    data_schema=vol.Schema(
-                        create_schema(self.config_entry, option=True)
-                    ),
-                    errors=self._errors,
-                )
+            return self.async_create_entry(
+                title="", data={**self.config_entry.options, **user_input}
+            )
+
+        include_details = self.config_entry.options.get(
+            CONF_INCLUDE_RESULT_DETAILS,
+            self.config_entry.data.get(
+                CONF_INCLUDE_RESULT_DETAILS, DEFAULT_INCLUDE_RESULT_DETAILS
+            ),
+        )
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema({
+                vol.Required(CONF_INCLUDE_RESULT_DETAILS, default=include_details): bool,
+            }),
+        )

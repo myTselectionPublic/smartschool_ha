@@ -18,6 +18,8 @@ from homeassistant.const import (
     CONF_USERNAME
 )
 from .const import (
+    CONF_INCLUDE_RESULT_DETAILS,
+    DEFAULT_INCLUDE_RESULT_DETAILS,
     CONF_MFA,
     CONF_SMARTSCHOOL_DOMAIN,
     DOMAIN,
@@ -44,7 +46,7 @@ async def async_setup_entry(hass, config_entry, async_add_devices):
     """Setup sensor platform for the ui"""
     _LOGGER.info("async_setup_entry " + NAME)
     coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
-    config = config_entry.data
+    config = {**config_entry.data, **config_entry.options}
     await dry_setup(hass, config, async_add_devices, coordinator)
     return True
 
@@ -75,7 +77,10 @@ async def dry_setup(hass, config_entry, async_add_devices, coordinator):
         mfa,
         async_get_clientsession(hass),
         hass, 
-        coordinator
+        coordinator,
+        include_result_details=config.get(
+            CONF_INCLUDE_RESULT_DETAILS, DEFAULT_INCLUDE_RESULT_DETAILS
+        ),
     )
     
     sensorTasks = ComponentUserSensor(componentData, hass)
@@ -89,7 +94,9 @@ async def dry_setup(hass, config_entry, async_add_devices, coordinator):
 
 
 class ComponentData:
-    def __init__(self, username, password, smartschool_domain, mfa, client, hass, coordinator):
+    def __init__(self, username, password, smartschool_domain, mfa, client, hass, coordinator,
+                 include_result_details=DEFAULT_INCLUDE_RESULT_DETAILS):
+        self._include_result_details = include_result_details
         self._username = username
         self._password = password
         self._smartschool_domain = smartschool_domain
@@ -337,11 +344,12 @@ class ComponentResultsSensor(Entity):
             ATTR_ATTRIBUTION: NAME,
             "last update": self._last_update,
             "total result": f"{self._data._total_result}%",
-            "result_details": self._data._result_details,
             "username": self._username,
             "school": self._school,
             "entity_picture": "https://raw.githubusercontent.com/myTselection/smartschool_ha/master/icon.png"
         }
+        if self._data._include_result_details:
+            base["result_details"] = self._data._result_details
         if self._data._results_per_course:
             for c, v in self._data._results_per_course.items():
                 if v:

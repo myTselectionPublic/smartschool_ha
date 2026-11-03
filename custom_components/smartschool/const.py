@@ -1,6 +1,8 @@
 DOMAIN = "smartschool"
 CONF_SMARTSCHOOL_DOMAIN = "smartschool_domain"
 CONF_MFA = "mfa"
+CONF_INCLUDE_RESULT_DETAILS = "include_result_details"
+DEFAULT_INCLUDE_RESULT_DETAILS = True
 
 
 LIST_TAKEN = "Taken"
