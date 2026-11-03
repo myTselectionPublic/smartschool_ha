@@ -134,6 +134,13 @@ content: >
   {% macro text(value) -%}
     {{ value | string | replace('|', '&#124;') | replace('\r', '') | replace('\n', '<br>') }}
   {%- endmacro %}
+  {% macro percentage(value) -%}
+    {%- if value | string | replace('%', '') | float(100) < 50 -%}
+      <font color="red">{{ value | e }}</font>
+    {%- else -%}
+      {{ value | e }}
+    {%- endif -%}
+  {%- endmacro %}
 
   {% set ignored = [
     'total result', 'result_details', 'attribution', 'friendly_name',
@@ -147,7 +154,7 @@ content: >
   {% for sensor in sensors %}
 
   <details><summary><b>{{ text(sensor.attributes.get('username', sensor.name))
-  }}: Totaal: {{ text(sensor.attributes.get('total result', '—'))
+  }}: Totaal: {{ percentage(sensor.attributes.get('total result', '—'))
   }}</b></summary>
 
 
@@ -176,8 +183,8 @@ content: >
 
   {% if key.rsplit(' - ', 1)[0] == course %}
 
-  {% set summary.scores = summary.scores + [key.rsplit(' - ', 1)[1] ~ ': ' ~
-  value] %}
+  {% set summary.scores = summary.scores + [(key.rsplit(' - ', 1)[1] | e) ~ ': ' ~
+  percentage(value)] %}
 
   {% endif %}
 
@@ -190,8 +197,8 @@ content: >
 
   {% if course_results %}
 
-  <details><summary><b>{{ course | e }}</b> — {{ summary.scores | join(' · ') |
-  e }}</summary>
+  <details><summary><b>{{ course | e }}</b> — {{ summary.scores | join(' · ')
+  }}</summary>
 
 
   {% for category, category_results in course_results | groupby('category') %}
@@ -205,9 +212,9 @@ content: >
 
   {% for result in category_results | sort(attribute='date', reverse=true) -%}
 
-  | {{ text(result.date[:10]) }} | {{ text(result.title) }} | {{ result.obtained
+  | {{ result.date[8:10] }}/{{ result.date[5:7] }}/{{ result.date[2:4] }} | {{ text(result.title) }} | {{ result.obtained
   if result.obtained is not none else '—' }}/{{ result.maximum if result.maximum
-  is not none else '—' }} | {{ (result.percentage ~ '%') if result.percentage is
+  is not none else '—' }} | {{ percentage(result.percentage ~ '%') if result.percentage is
   not none else '—' }} | {{ text(result.feedback) if result.feedback else '—' }}
   |
 
@@ -221,7 +228,7 @@ content: >
 
   {% else %}
 
-  **{{ text(course) }}** — {{ text(summary.scores | join(' · ')) }}
+  **{{ text(course) }}** — {{ summary.scores | join(' · ') }}
 
 
   {% endif %}
@@ -249,6 +256,13 @@ content: |
   {% macro text(value) -%}
     {{ value | string | replace('|', '&#124;') | replace('\r', '') | replace('\n', '<br>') }}
   {%- endmacro %}
+  {% macro percentage(value) -%}
+    {%- if value | float(100) < 50 -%}
+      <font color="red">{{ value }}%</font>
+    {%- else -%}
+      {{ value }}%
+    {%- endif -%}
+  {%- endmacro %}
   {% set sensors = states.sensor
     | selectattr('entity_id', 'match', '^sensor[.]smartschool_.*_results$')
     | list %}
@@ -266,7 +280,7 @@ content: |
   | Datum | Toets | Score | % | Feedback |
   |:---|:---|---:|---:|:---|
   {% for result in course_results | sort(attribute='date', reverse=true) -%}
-  | {{ text(result.date[:10]) }} | {{ text(result.title) }} | {{ result.obtained if result.obtained is not none else '—' }}/{{ result.maximum if result.maximum is not none else '—' }} | {{ (result.percentage ~ '%') if result.percentage is not none else '—' }} | {{ text(result.feedback) if result.feedback else '—' }} |
+  | {{ result.date[8:10] }}/{{ result.date[5:7] }}/{{ result.date[2:4] }} | {{ text(result.title) }} | {{ result.obtained if result.obtained is not none else '—' }}/{{ result.maximum if result.maximum is not none else '—' }} | {{ percentage(result.percentage) if result.percentage is not none else '—' }} | {{ text(result.feedback) if result.feedback else '—' }} |
   {% endfor %}
 
   {% endfor %}
