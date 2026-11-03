@@ -126,50 +126,121 @@ content: >
 
 #### Example result compact markdown:
 
+This card shows the total and course summaries by default. Click a course to expand its individual results, grouped by type and sorted newest first. Courses without available `result_details` remain plain summaries. The teacher is shown once in the course summary.
+
 ```yaml
 type: markdown
 content: >
+  {% macro text(value) -%}
+    {{ value | string | replace('|', '&#124;') | replace('\r', '') | replace('\n', '<br>') }}
+  {%- endmacro %}
+
   {% set ignored = [
-    'total result',
-    'result_details',
-    'attribution',
-    'friendly_name',
-    'icon',
-    'last update',
-    'school',
-    'unit_of_measurement',
-    'username',
-    'entity_picture'
+    'total result', 'result_details', 'attribution', 'friendly_name',
+    'icon', 'last update', 'school', 'unit_of_measurement',
+    'username', 'entity_picture'
   ] %}
 
-
   {% set sensors = states.sensor
-    | selectattr('entity_id', 'match', '^sensor\.smartschool_.*\_.*_results$')
+    | selectattr('entity_id', 'match', '^sensor[.]smartschool_.*_results$')
     | list %}
-
   {% for sensor in sensors %}
 
-
-  <details><summary><b>Totaal: {{ sensor.attributes.get('total result')
+  <details><summary><b>{{ text(sensor.attributes.get('username', sensor.name))
+  }}: Totaal: {{ text(sensor.attributes.get('total result', '—'))
   }}</b></summary>
 
-    | Vak | Resultaat |
-    |:-------|-------:|{% for key, value in sensor.attributes.items() %}{% if key
-    not in ignored %}{% set value_string = value | string | replace('%', '') %}{%
-    set numeric_value = value_string | float(0) %}
-    {% if numeric_value < 50 %}| {{ key }} | <font color="red">**{{ value }}**</font> |{% else %}| {{ key }} | {{ value }} |{% endif %}{% endif %}{% endfor %}{% if
-    sensor.attributes.get('total result') is not none %}
-    | **Totaal resultaat** | **{{ sensor.attributes.get('total result') }}** |
 
-    {% endif %}
-  </details>
+  {% set results = sensor.attributes.get('result_details', []) %}
+
+  {% set ns = namespace(courses=[]) %}
+
+  {% for key in sensor.attributes if key not in ignored and ' - ' in key %}
+
+  {% set course = key.rsplit(' - ', 1)[0] %}
+
+  {% if course not in ns.courses %}
+
+  {% set ns.courses = ns.courses + [course] %}
+
+  {% endif %}
 
   {% endfor %}
+
+  {% for course in ns.courses | sort %}
+
+  {% set summary = namespace(scores=[]) %}
+
+  {% for key, value in sensor.attributes.items() if key not in ignored and ' - '
+  in key %}
+
+  {% if key.rsplit(' - ', 1)[0] == course %}
+
+  {% set summary.scores = summary.scores + [key.rsplit(' - ', 1)[1] ~ ': ' ~
+  value] %}
+
+  {% endif %}
+
+  {% endfor %}
+
+  {% set subject = course.rsplit(' (', 1)[0] %}
+
+  {% set course_results = results | selectattr('subject', 'eq', subject) | list
+  %}
+
+  {% if course_results %}
+
+  <details><summary><b>{{ course | e }}</b> — {{ summary.scores | join(' · ') |
+  e }}</summary>
+
+
+  {% for category, category_results in course_results | groupby('category') %}
+
+  **{{ text(category) }}**
+
+
+  | Datum | Toets | Score | % | Feedback |
+
+  |:---|:---|---:|---:|:---|
+
+  {% for result in category_results | sort(attribute='date', reverse=true) -%}
+
+  | {{ text(result.date[:10]) }} | {{ text(result.title) }} | {{ result.obtained
+  if result.obtained is not none else '—' }}/{{ result.maximum if result.maximum
+  is not none else '—' }} | {{ (result.percentage ~ '%') if result.percentage is
+  not none else '—' }} | {{ text(result.feedback) if result.feedback else '—' }}
+  |
+
+  {% endfor %}
+
+
+  {% endfor %}
+
+  </details>
+
+
+  {% else %}
+
+  **{{ text(course) }}** — {{ text(summary.scores | join(' · ')) }}
+
+
+  {% endif %}
+
+  {% endfor %}
+
+  </details>
+
+  {% else %}
+
+  Geen Smartschool-resultatensensoren gevonden.
+
+  {% endfor %}
+
 ```
 
 #### Example result details markdown:
 
-Add this as a separate Markdown card alongside the course overview above. Enable **Include individual result details in the results sensor** under the integration's **Configure** action. This card shows each evaluation, newest first, for every Smartschool results sensor. Unavailable scores are shown as `—`.
+Add this as a separate Markdown card alongside the course overview above. Enable **Include individual result details in the results sensor** under the integration's **Configure** action. For each account, evaluations are grouped by type (`category`), then by course (`subject`), with the newest results first within each course. Each result occupies one table row; the score combines obtained and maximum points. All result details are included, with unavailable values shown as `—`.
 
 ```yaml
 type: markdown
@@ -185,19 +256,20 @@ content: |
   ## {{ sensor.attributes.get('username', sensor.name) }}
 
   {% set results = sensor.attributes.get('result_details', []) %}
-  {% for result in results | sort(attribute='date', reverse=true) %}
-  ### {{ text(result.subject) }}: {{ text(result.title) }}
+  {% for type, type_results in results | groupby('category') %}
+  ### {{ text(type) }}
 
-  | | Details |
-  |:---|:---|
-  | Datum | {{ text(result.date[:10]) }} |
-  | Categorie | {{ text(result.category) }} |
-  | Behaald | {{ result.obtained if result.obtained is not none else '—' }} |
-  | Maximum | {{ result.maximum if result.maximum is not none else '—' }} |
-  | Percentage | {{ (result.percentage ~ '%') if result.percentage is not none else '—' }} |
-  | Leerkracht | {{ text(result.teacher) }} |
-  | Feedback | {{ text(result.feedback) if result.feedback else '—' }} |
+  {% for course, course_results in type_results | groupby('subject') %}
+  {% set teacher = (course_results | first).teacher %}
+  #### {{ text(course) }}{% if teacher %} ({{ text(teacher) }}){% endif %}
 
+  | Datum | Toets | Score | % | Feedback |
+  |:---|:---|---:|---:|:---|
+  {% for result in course_results | sort(attribute='date', reverse=true) -%}
+  | {{ text(result.date[:10]) }} | {{ text(result.title) }} | {{ result.obtained if result.obtained is not none else '—' }}/{{ result.maximum if result.maximum is not none else '—' }} | {{ (result.percentage ~ '%') if result.percentage is not none else '—' }} | {{ text(result.feedback) if result.feedback else '—' }} |
+  {% endfor %}
+
+  {% endfor %}
   {% else %}
   Geen resultaatdetails beschikbaar. Controleer of de optie is ingeschakeld.
 
