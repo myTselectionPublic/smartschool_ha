@@ -31,6 +31,7 @@ from .const import (
     TASK_LABEL_MEEBRENGEN
 )
 
+from .smartschool_api.session import LegacyAgendaUnavailable
 from .storage import ChecklistStatusStorage
 from .utils import *
 import re
@@ -109,11 +110,16 @@ class ComponentUpdateCoordinator(DataUpdateCoordinator):
                 self._userdetails = await self._hass.async_add_executor_job(lambda: self._session.login(self._username, self._password, self._smartschool_domain, self._mfa))
                 assert self._userdetails is not None
 
-                self._future_tasks = await self._hass.async_add_executor_job(lambda: self._session.getFutureTasks())
-                _LOGGER.debug(f"{DOMAIN} external data: {self._future_tasks}")
-                
-                agenda_timestamp_to_use = datetime.now()
-                self._agenda = await self._hass.async_add_executor_job(lambda: self._session.getAgenda(agenda_timestamp_to_use))
+                try:
+                    self._future_tasks = await self._hass.async_add_executor_job(lambda: self._session.getFutureTasks())
+                    _LOGGER.debug(f"{DOMAIN} external data: {self._future_tasks}")
+
+                    agenda_timestamp_to_use = datetime.now()
+                    self._agenda = await self._hass.async_add_executor_job(lambda: self._session.getAgenda(agenda_timestamp_to_use))
+                except LegacyAgendaUnavailable:
+                    self._future_tasks = None
+                    self._agenda = []
+                    _LOGGER.info("Legacy Agenda unavailable for %s; loading Planner instead", self._smartschool_domain)
                 _LOGGER.debug(f"{DOMAIN} update login completed")
 
                 self._messages = await self._hass.async_add_executor_job(lambda: self._session.getMessages())

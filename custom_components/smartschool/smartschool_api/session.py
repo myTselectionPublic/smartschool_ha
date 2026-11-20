@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Self
-from urllib.parse import urljoin
+from urllib.parse import parse_qs, urljoin, urlsplit
 import pyotp
 import types
 
@@ -47,6 +47,10 @@ def _handle_cookies_and_login(func):
             self._save_cookies()
 
     return inner
+
+
+class LegacyAgendaUnavailable(SmartSchoolException):
+    """The school has retired its legacy Agenda and redirects to the homepage."""
 
 
 @dataclass
@@ -565,7 +569,22 @@ class Smartschool:
     # Original post and get methods (before decoration)
     # These are needed so the decorator can wrap them.
     def post(self, url, *args, **kwargs) -> Response:
-        return self._session.post(self.create_url(url), *args, **kwargs)
+        response = self._session.post(self.create_url(url), *args, **kwargs)
+        requested = urlsplit(url)
+        final = urlsplit(response.url)
+        is_agenda = (
+            requested.path.startswith("/Agenda/")
+            or parse_qs(requested.query).get("module") == ["Agenda"]
+        )
+        if (
+            is_agenda
+            and response.status_code == 200
+            and final.hostname == urlsplit(self._url).hostname
+            and final.path in ("", "/")
+            and parse_qs(final.query).get("module") == ["Homepage"]
+        ):
+            raise LegacyAgendaUnavailable("Legacy Agenda is unavailable; use Planner")
+        return response
 
     def get(self, url, *args, **kwargs) -> Response:
         return self._session.get(self.create_url(url), *args, **kwargs)
